@@ -1,0 +1,189 @@
+generator client {
+  provider  = "prisma-client-py"
+  interface = "asyncio"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ChatSession {
+  id           String        @id
+  createdAt    DateTime?     @default(now())
+  chatbot      String?
+  organization String?
+  referenceId  String        @default("")
+  identifier   String        @default("")
+  isSandbox    Boolean       @default(false)
+  Chatbot      Chatbot?      @relation(fields: [chatbot], references: [id])
+  Organization Organization? @relation(fields: [organization], references: [id])
+  Message      Message[]
+
+  @@index([chatbot])
+  @@index([identifier])
+  @@index([organization])
+  @@index([referenceId])
+}
+
+model Chatbot {
+  id                 String        @id
+  name               String        @default("")
+  organization       String?
+  createdAt          DateTime?     @default(now())
+  color              String        @default("")
+  updatedAt          DateTime?
+  welcomeMessages    Json?
+  fineTuneEmbeddings Json?
+  facebookPage       String?       @unique
+  ChatSession        ChatSession[]
+  FacebookPage       FacebookPage? @relation(fields: [facebookPage], references: [id])
+  Organization       Organization? @relation(fields: [organization], references: [id])
+  Document           Document[]    @relation("Chatbot_documents")
+
+  @@index([organization])
+}
+
+model Document {
+  id              String        @id
+  title           String        @default("")
+  content         Json?
+  contentTextOnly String        @default("")
+  author          String?
+  createdAt       DateTime?     @default(now())
+  organization    String?
+  updatedAt       DateTime?
+  embedding       Json?         @default("[]")
+  User            User?         @relation(fields: [author], references: [id])
+  Organization    Organization? @relation(fields: [organization], references: [id])
+  Chatbot         Chatbot[]     @relation("Chatbot_documents")
+
+  @@index([author])
+  @@index([organization])
+}
+
+model FacebookPage {
+  id                   String                @id
+  accessToken          String                @default("")
+  pageId               String                @default("")
+  isActive             Boolean               @default(true)
+  integration          String?
+  createdAt            DateTime?             @default(now())
+  updatedAt            DateTime?
+  organization         String?
+  Chatbot              Chatbot?
+  MessengerIntegration MessengerIntegration? @relation(fields: [integration], references: [id])
+  Organization         Organization?         @relation(fields: [organization], references: [id])
+
+  @@index([integration])
+  @@index([organization])
+}
+
+model Message {
+  id               String       @id
+  message          String       @default("")
+  session          String?
+  createdAt        DateTime?    @default(now())
+  fineTunedMessage String       @default("")
+  isFineTuned      Boolean      @default(false)
+  refersTo         String       @default("")
+  uuid             String       @default("")
+  chatbotId        String       @default("")
+  ChatSession      ChatSession? @relation(fields: [session], references: [id])
+
+  @@index([chatbotId])
+  @@index([session])
+}
+
+model MessengerIntegration {
+  id           String         @id
+  userId       String         @default("")
+  isActive     Boolean        @default(true)
+  organization String?        @unique
+  createdAt    DateTime?      @default(now())
+  updatedAt    DateTime?
+  FacebookPage FacebookPage[]
+  Organization Organization?  @relation(fields: [organization], references: [id])
+
+  @@index([userId])
+}
+
+model Notification {
+  id           String        @id
+  type         String        @default("")
+  content      Json?
+  isViewed     Boolean       @default(false)
+  organization String?
+  updatedAt    DateTime?
+  createdAt    DateTime?     @default(now())
+  Organization Organization? @relation(fields: [organization], references: [id])
+
+  @@index([organization])
+}
+
+model Organization {
+  id                            String                @id
+  name                          String                @default("")
+  owner                         String?
+  updatedAt                     DateTime?
+  createdAt                     DateTime?             @default(now())
+  metadata                      Json?                 @default("{}")
+  ChatSession                   ChatSession[]
+  Chatbot                       Chatbot[]
+  Document                      Document[]
+  FacebookPage                  FacebookPage[]
+  MessengerIntegration          MessengerIntegration?
+  Notification                  Notification[]
+  User_Organization_ownerToUser User?                 @relation("Organization_ownerToUser", fields: [owner], references: [id])
+  User_Organization_users       User[]                @relation("Organization_users")
+
+  @@index([owner])
+}
+
+model Plan {
+  id                String        @id
+  price             Int
+  checkoutSessionId String        @default("")
+  isActive          Boolean       @default(false)
+  cancelledAt       DateTime?
+  activeUntil       DateTime?
+  updatedAt         DateTime?
+  createdAt         DateTime?     @default(now())
+  subscription      String?
+  user              String?       @unique
+  metadata          Json?
+  tier              Int           @default(0)
+  Subscription      Subscription? @relation(fields: [subscription], references: [id])
+  User              User?         @relation(fields: [user], references: [id])
+
+  @@index([subscription])
+}
+
+model Subscription {
+  id            String    @id
+  name          String    @default("")
+  price         Int
+  tier          Int       @default(0)
+  stripePriceId String    @default("")
+  updatedAt     DateTime?
+  createdAt     DateTime? @default(now())
+  description   String    @default("")
+  Plan          Plan[]
+}
+
+model User {
+  id                                    String         @id
+  name                                  String         @default("")
+  email                                 String         @unique @default("")
+  password                              String
+  createdAt                             DateTime?      @default(now())
+  role                                  String         @default("user")
+  trialEndsAt                           DateTime?
+  passwordResetIssuedAt                 DateTime?
+  passwordResetRedeemedAt               DateTime?
+  passwordResetToken                    String?
+  Document                              Document[]
+  Organization_Organization_ownerToUser Organization[] @relation("Organization_ownerToUser")
+  Plan                                  Plan?
+  Organization_Organization_users       Organization[] @relation("Organization_users")
+}
